@@ -1,10 +1,7 @@
 # Book Management API
 
 Async FastAPI service for managing books and authors, backed by PostgreSQL, with JWT-based
-auth (access + revocable refresh) and a CLI seeder.
-
-This README is structured around the **decisions** — what's enforced, where, and what's
-deliberately out of scope. CRUD is uninteresting; the judgment is in the rest.
+auth (access + revocable refresh) and per-row-atomic bulk import.
 
 ---
 
@@ -31,21 +28,22 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-Run the tests (real Postgres required — see *Testing*):
+Run the tests inside the api container (dev deps + `tests/` are baked into the image,
+`TEST_DATABASE_URL` is preset):
 
 ```bash
-docker run -d --name books-test-pg \
-  -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=books_test \
-  -p 5432:5432 postgres:16-alpine
-pytest
+docker compose up -d
+docker exec api pytest
 ```
 
-Seed with example data:
+Lint:
 
 ```bash
-python -m app.seed examples/books.json
-python -m app.seed examples/books.csv --format csv
+ruff check . && ruff format --check .
 ```
+
+CI runs all three (lint, tests, docker build) on every push and PR — see
+`.github/workflows/ci.yml`.
 
 ---
 
@@ -55,22 +53,24 @@ python -m app.seed examples/books.csv --format csv
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/books` | Filter by `title`, `author`, `author_id`, `genre`, `genre_id`, `year_from`, `year_to`. Sort + paginate. `X-Total-Count` header. |
+| `GET` | `/books` | Filter by `title`, `author`, `author_id`, `genre`, `genre_id`, `year_from`, `year_to`. Sort + paginate. |
 | `GET` | `/books/{id}` | |
+| `GET` | `/books/{id}/similar` | Top-N similar books (paginated). Deterministic scoring on shared authors / same genre / year proximity. |
 | `GET` | `/books/export` | Stream all matching books as JSON or CSV. |
 | `GET` | `/authors` | Substring search by `q`. |
 | `GET` | `/authors/{id}` | |
-| `GET` | `/genres` | The predefined list, seeded by the migration. |
+| `GET` | `/genres` | List of genres (seeded defaults + anything added via `POST`). |
 | `GET` | `/health` | Liveness + DB connectivity (`{status, db}`). |
 
 ### Authenticated (Bearer access token)
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/books` | Authors referenced by `author_ids` only (must exist). |
-| `PATCH` | `/books/{id}` | Strict partial. `null` clears; unknown keys → 422. |
-| `DELETE` | `/books/{id}` | |
-| `POST` | `/authors` | Strict create — 409 on case-insensitive duplicate. |
+| `POST` / `PATCH` / `DELETE` | `/books`, `/books/{id}` | Authors referenced by `author_ids` only. PATCH is strict partial (`null` clears, unknown keys → 422). |
+| `POST` | `/books/import` | Multipart CSV/JSON. 2 MiB cap, 5/hour/user rate limit, per-row atomic. Returns the full import report (`ImportSessionRead`). |
+| `GET` | `/books/import` | Paginated audit list of the caller's own past imports. |
+| `POST` / `PATCH` / `DELETE` | `/authors`, `/authors/{id}` | Names are **not** unique — see *Author identity*. |
+| `POST` / `PATCH` / `DELETE` | `/genres`, `/genres/{id}` | Case-insensitive uniqueness on name and slug. Delete is `409` if any book references the genre (FK RESTRICT). |
 | `POST` | `/auth/logout-all` | Revoke every refresh token for the calling user. |
 
 ### Auth flow
@@ -82,72 +82,58 @@ python -m app.seed examples/books.csv --format csv
 | `POST` | `/auth/refresh` | Rotates the refresh token. Reuse of a rotated token revokes *all* sessions. |
 | `POST` | `/auth/logout` | Revoke the supplied refresh token. Idempotent. |
 
----
 
-## Where invariants live, and why
+## Author identity — why no name uniqueness
 
-The spec asks explicitly. Here's the rationale.
+Two real people can share a name (and occasionally a birthdate). Encoding "one person per
+name" as a DB constraint was a false invariant — see migration `0004_drop_authors_name_unique`.
 
-| Invariant | Pydantic | Service | Database | Why |
-|---|---|---|---|---|
-| Non-empty title | ✅ | | | Cheap shape check; clean 422 before DB. |
-| `published_year >= 1800` | ✅ | | ✅ CHECK | DB CHECK is the immovable floor; if someone hand-INSERTs, they still can't violate it. |
-| `published_year <= current_year` | ✅ | | | DB CHECK can't reference `now()` (must be immutable). Pydantic handles it dynamically. |
-| Genre must be from predefined list | | | ✅ FK to `genres` | DB-side closed-set membership. Pydantic only validates the *shape* of `genre_id`; the FK is the authority. |
-| Author existence | | ✅ `_validate_authors` | ✅ FK | Service returns clean 404 with the offending id; FK is the safety net for races. |
-| Case-insensitive author uniqueness | | (cheap pre-check) | ✅ `UNIQUE INDEX (lower(name))` | The DB is the authority — concurrent inserts that bypass the pre-check land as IntegrityError → clean 409. |
-| Case-insensitive email uniqueness | | (cheap pre-check) | ✅ `UNIQUE INDEX (lower(email))` | Same shape as authors. |
-| At-least-one-author per book | ✅ | ✅ | | Pydantic on create; service rejects empty `author_ids` on PATCH with a clear 409. |
-| Sort columns | ✅ whitelist | | | Arbitrary `ORDER BY` is a perf and info-leak footgun. |
-| Pagination caps (limit ≤ 200) | ✅ | | | Prevent accidental full-table scans through the public API. |
-| Unknown fields on PATCH | ✅ `extra="forbid"` | | | A silently-ignored typo is a bug factory. |
+Consequences:
 
-The pattern: **Pydantic for shape and quick rejection, DB for invariants that must hold across
-all code paths.** The service layer is for cross-row decisions (existence checks, "did the
-client send something coherent?") that don't belong in either place.
+- `POST /authors` accepts any name, including exact duplicates. Two `"John Smith"` rows
+  with distinct ids are valid.
+- Bulk import always **creates new author rows** per input name (it has no way to know
+  which "John Smith" the CSV means). Clients that want dedup should pass `author_ids`
+  through the API instead of names through import.
 
 ---
 
-## Concurrency — two requests try to create the same author at the same time
+## Bulk import — `POST /books/import`
 
-What happens, in order:
+Multipart CSV or JSON upload. Auth required. Hard 2 MiB cap and 5/hour/user rate limit.
 
-1. Both requests reach `POST /authors`.
-2. Both run the cheap pre-check `SELECT WHERE lower(name) = ...` → both see no row.
-3. Both attempt `INSERT INTO authors (name) ...`.
-4. One INSERT wins; the other hits the unique functional index `uq_authors_name_lower`.
-5. SQLAlchemy raises `IntegrityError`. The global handler converts it to a clean `409 Conflict`.
+**Per-row atomicity.** Each row runs inside `session.begin_nested()` (a SAVEPOINT). A row
+that fails — validation, unknown genre, integrity violation — rolls back to its savepoint;
+the rest of the batch still commits. The response carries the full report:
 
-The pre-check is purely an optimization — it produces a friendlier error message in the common
-case. The **DB is the authority**. The same shape applies to email uniqueness on `/auth/register`.
+```json
+{
+  "id": "...", "status": "completed",
+  "received": 4, "successful": 2, "failed": 2,
+  "errors": [{"row": 2, "reason": "title must not be empty"}, ...],
+  "error_count_total": 2
+}
+```
 
-For internal bulk operations (the seeder), `INSERT ... ON CONFLICT DO NOTHING` lets the chunk
-absorb the race without aborting (`app/authors/service.py:get_or_create_authors_by_name`).
+**The session row is written before processing.** This means:
 
+- A top-level parse failure (bad JSON, missing CSV header) still records an
+  `import_sessions` row and counts toward the rate limit.
+- `GET /books/import` returns the caller's full history, even for attempts that 400'd at
+  the parse step.
+
+**CSV/JSON shape** (names, not ids — the importer resolves authors and genres by name):
+
+```csv
+title,genre,authors,published_year,description
+The Hobbit,Fantasy,J. R. R. Tolkien;Christopher Tolkien,1937,
+```
+
+Authors use `;` or `|` as a separator (commas conflict with CSV). `genre` is the genre's
+name or slug (case-insensitive). Example payloads live in `examples/`.
 ---
 
-## List endpoint with 10k+ books
-
-The relevant indices:
-
-- `ix_books_title_lower` — functional `lower(title)`. The `title` filter is
-  `lower(title) LIKE '%x%'`; without this index it's a seqscan.
-- `ix_books_genre_id` — filter by genre id (or the join when filtering by name).
-- `ix_books_published_year` — year range filters.
-- `ix_book_authors_author_id` — the reverse direction of the M2M for "books by author".
-
-The `(genre, title, sort_by=published_year)` path uses the genre index for the WHERE, then
-a sort on `published_year`. At 10k rows that's a heap scan + an in-memory sort; well under
-50 ms in practice. If we grow to 1M+, a covering composite index
-`(genre_id, published_year, id)` becomes worth measuring — not before.
-
-Pagination uses `LIMIT/OFFSET` with `ORDER BY <sort>, id` (id as tiebreaker, deterministic).
-Keyset pagination would be cheaper at the tail of huge tables but adds API surface for a
-problem we don't have. The "limit ≤ 200" cap puts a ceiling on per-request work either way.
-
----
-
-## Auth — token lifecycle for long-lived clients
+## Auth — token lifecycle
 
 Two-token flow:
 
@@ -158,24 +144,22 @@ Two-token flow:
 
 ### Why a DB-backed refresh
 
-If we want real logout / device revocation, *something* has to be stateful. The choices:
-
-- Pure stateless refresh → no revocation. A stolen 30-day token is good for 30 days.
-- A JWT denylist → that's a DB table with extra steps.
-- A `refresh_tokens` row → cleanest. Touched only on `/auth/refresh` (~every 15 min per active
-  session), not on every API request. The cost is one indexed lookup per token-renewal.
+If we want real logout / device revocation, *something* has to be stateful. A
+`refresh_tokens` row is the cleanest option — touched only on `/auth/refresh` (~every 15
+min per active session), not on every API request. The cost is one indexed lookup per
+token-renewal.
 
 ### Why argon2 for passwords but sha256 for refresh tokens
 
 Passwords are low-entropy (`hunter2`-class). Slow hashing protects them by making offline
-brute-force expensive. Refresh tokens are 256 random bits — there is no "brute force" to slow
-down; we just need confidentiality at rest. Argon2 here would be a category error.
+brute-force expensive. Refresh tokens are 256 random bits — there is no "brute force" to
+slow down; we just need confidentiality at rest. Argon2 here would be a category error.
 
-### Reuse detection (the property the table really earns)
+### Reuse detection
 
-Refresh tokens rotate on every use. If a token that has *already been rotated* is presented
-again, that's a signal someone has a copy they shouldn't — almost always token theft. The
-service:
+Refresh tokens rotate on every use. If a token that has *already been rotated* is
+presented again, that's a signal someone has a copy they shouldn't — almost always token
+theft. The service:
 
 1. Logs a warning with the user id.
 2. Revokes every active refresh token for that user.
@@ -186,201 +170,98 @@ service:
 
 This is distinct from "revoked via logout" (`replaced_by_id IS NULL`). Logging out a token
 twice is idempotent and never escalates — only *rotated-then-reused* triggers the global
-revoke. Tests cover both paths (`tests/test_auth.py:test_refresh_reuse_revokes_all_sessions`
-and `:test_logout_revokes_only_target`).
+revoke.
 
-### Mobile clients
+### Caveat — logout-all and the 15-min gap
 
-A mobile app keeps its refresh token. When the access token expires (15 min), the client
-calls `/auth/refresh` and receives a new pair. No re-login until the refresh itself expires
-(30 days) or the user explicitly logs out. Stolen device? Hit `/auth/logout-all` from another
-device.
+Access tokens are stateless. `POST /auth/logout-all` revokes all refresh tokens
+immediately, but any access token already issued is good until its 15-min TTL expires. The
+check (jti denylist or `token_version` on every request), which is the standard JWT
+trade-off and intentionally not built here.
 
 ---
 
 ## Observability — "which request caused that 500?"
 
-- **Request ID middleware** (`app/middleware.py`): every request gets a UUID — or an
-  inbound `X-Request-ID` if a gateway is in front. Echoed back as a response header.
-- **Structured JSON logs** (`app/logging_config.py`): every log line carries `request_id`,
-  pulled from a `ContextVar` so any code in the request can log without explicitly threading
-  it.
-- **Error bodies include the request id**: a client seeing `{"detail": "...", "request_id":
-  "abc"}` can quote that id to an operator who greps logs for one matching record.
-- **One access-log line per request** (method, path, status, ms) emitted by the middleware.
-- **`/health` checks DB connectivity** (with a 2s timeout) and returns
-  `{status, db: ok|down}` — a probe can distinguish "process up, DB down" from "process
-  down" without needing two endpoints.
+Every request gets a UUID (or an inbound `X-Request-ID` from a gateway). It appears in:
 
----
+- The response header `X-Request-ID`.
+- The structured JSON log lines emitted during the request (`request_id_var` ContextVar
+  → JSON formatter — `app/middleware.py`, `app/logging_config.py`).
+- Every error body. The 500 handler deliberately does NOT leak the exception message
+  — only the `request_id`. The full traceback goes to logs.
 
-## Bulk import — CLI seeder, not an endpoint
-
-Bulk import is an out-of-band CLI:
+Workflow when a user reports a 500:
 
 ```bash
-python -m app.seed examples/books.json
-python -m app.seed examples/books.csv --format csv
-cat books.json | python -m app.seed - --format json
-python -m app.seed examples/books.json --force   # allow seeding a non-empty table
+docker compose logs api | grep <request_id>
 ```
 
-**Why CLI**, not an HTTP endpoint:
+You get the inbound access-log line, any intermediate warnings, and the `unhandled
+exception` line with the traceback — all keyed by the same id.
 
-- **Trust boundary.** Bulk import is an operator action, not an end-user action. Putting it
-  behind an authenticated upload endpoint blurs that line and adds a 25-MiB attack surface
-  (DoS, long-locking transactions, connection exhaustion) that doesn't go away with auth.
-- **Operational reality.** Catalog data arrives from publishers as files; an ops person
-  runs the seeder. They don't curl through the API.
-- **Composability.** A CLI returns a non-zero exit code on failure → cron / Make / CI can
-  detect it. A 200 OK with `{failed: 17}` requires every caller to remember to grep the body.
-
-**Semantics**:
-
-- **Insert-only.** Idempotency is the caller's responsibility: by default the seeder refuses
-  to run against a non-empty `books` table. Pass `--force` to override.
-- **Per-row validation.** One bad row does not abort the batch. Output:
-  `received / created / failed` plus per-row errors on stderr. Exit non-zero if anything
-  failed.
-- **Chunked savepoints** (default 500 rows). A DB-level error in one chunk fails those rows
-  but lets the rest commit. The `BULK_IMPORT_MAX_ROWS` env cap (default 50k) prevents a
-  50M-row CSV from monopolizing a connection.
-- **Author resolution by name.** The seeder uses `INSERT ... ON CONFLICT DO NOTHING` to
-  case-insensitively get-or-create authors. This is intentional asymmetry: the **API**
-  requires author IDs (clients should know what they reference), but operator imports
-  legitimately have raw catalog data with names.
-
-**CSV shape**:
-
-```
-title,genre,authors,published_year,description
-The Hobbit,Fantasy,J. R. R. Tolkien;Christopher Tolkien,1937,
-```
-
-Authors are `;`- or `|`-separated (commas would conflict with CSV). `genre` is the genre's
-name or slug (case-insensitive).
-
-**JSON shape**: a top-level list or `{"books": [...]}`. Each book mirrors the CSV columns,
-with `authors` as a JSON array.
+`/health` checks DB connectivity (2s timeout) and returns `{status, db}` — a probe can
+distinguish "process up, DB down" from "process down."
 
 ---
 
-## Schema (owned by `migrations/`, not by `models.py`)
+## Recommendation — `GET /books/{id}/similar`
 
-```
-genres                authors            books
-──────                ───────            ─────
-id PK                 id PK              id PK
-name UNIQUE           name UNIQUE        title
-slug UNIQUE           bio                genre_id  FK→genres   (RESTRICT)
-                      created_at         published_year
-                      updated_at         description
-                                         created_at, updated_at
+Hand-rolled scoring, computed inside one SQL query. No ML.
 
-           book_authors                       users               refresh_tokens
-           ────────────                       ─────               ──────────────
-           book_id   FK→books   (CASCADE)     id PK               id PK
-           author_id FK→authors (RESTRICT)    email UNIQUE        user_id     FK→users (CASCADE)
-                                              password_hash       token_hash  UNIQUE
-                                                                  expires_at
-                                                                  revoked_at
-                                                                  replaced_by_id
-```
+- `+3` shared author
+- `+2` same genre
+- `+1` published within ±5 years
 
-Hand-written initial migration (`0001_initial.py`) — never autogenerated. Notable choices:
+Source book excluded; results filtered to `score > 0`. Ordered by `score DESC,
+created_at DESC, id`.
 
-- `UNIQUE INDEX uq_authors_name_lower ON authors (lower(name))` — case-insensitive author
-  uniqueness at the DB layer.
-- `UNIQUE INDEX uq_users_email_lower ON users (lower(email))` — same shape for emails.
-- `CHECK (published_year >= 1800)` — the floor lives in the DB; upper bound is Pydantic-only
-  because CHECK must be immutable.
-- `book_authors.author_id ON DELETE RESTRICT` — refusing to delete an author who still has
-  books is the safe default. CASCADE would silently destroy data.
-- `books.genre_id ON DELETE RESTRICT` — same shape.
-- `refresh_tokens.user_id ON DELETE CASCADE` — when a user is deleted, their tokens go too.
-- `updated_at` trigger keeps the column truthful even for raw SQL updates that bypass the
-  ORM.
-- Genres are seeded by the migration itself. The "predefined list" property only holds if
-  adding a genre is a code review event — not an ad-hoc admin INSERT.
+**Pre-filtered candidate set.** Before scoring, the query restricts the scanned set to
+books that share at least one signal with the source (any-shared-author OR same-genre OR
+nearby-year). Without the pre-filter, the DB would compute `CASE` arithmetic against every
+row in `books` — fine at 1k rows, painful at 1M. With the pre-filter, scoring runs over
+what the indexes can find.
+
+Migrations are **hand-written**, never autogenerated. `app/db/models.py` is the ORM
+mapping; the migrations are the source of truth for schema (functional indexes, CHECKs, FK
+behavior, seed genres, `updated_at` triggers). `tests/conftest.py` mirrors the
+migration-only artifacts manually so tests match production.
+
+### Notable schema choices
+
+- **`books.genre_id ON DELETE RESTRICT`** — refusing to delete a referenced genre is the
+  safe default. CASCADE would silently destroy data; tombstones invite query-filter bugs.
+- **`book_authors.author_id ON DELETE RESTRICT`** — same shape for authors.
+- **`refresh_tokens.user_id ON DELETE CASCADE`** — when a user is deleted, their tokens
+  go too.
+- **`CHECK (published_year >= 1800)`** — the floor is in the DB; the upper bound is
+  Pydantic-only because CHECK must be immutable.
+- **`updated_at` trigger** — keeps the column truthful even for raw SQL updates that
+  bypass the ORM.
 
 ### Why M2M (`book_authors`) and not `books.author_id`
 
-Books with multiple authors are common (anthologies, co-authored works). A single FK forces
-a lie ("primary author"). The M2M cost is one join table; the simplification cost of `1:N`
-is permanent data fidelity loss.
+Books with multiple authors are common. A single FK forces a lie ("primary author"). The
+M2M cost is one join table; the simplification cost of `1:N` is permanent data fidelity
+loss.
 
-### Why ORM (not raw SQL or Core)
 
-The domain is small and relational. The ORM's `selectin` loader fits the response contract
-cleanly. Raw SQL would mean hand-rolling row → DTO mapping for every endpoint. Core gives up
-the typing without buying back perf at the scale this service realistically sees (~10⁵
-books). The two places I reach for Core: bulk `pg_insert ... ON CONFLICT` for author dedupe
-(`app/authors/service.py`), and the export-streaming `session.stream().partitions()` path.
+## Tests
 
----
+Four files, 15 tests, ~3 seconds against a real Postgres.
 
-## What I deliberately left out
+- `tests/test_e2e.py` — two full user journeys (curator lifecycle + bulk import flow).
+  Each starts with an unauthenticated 401 probe to pin auth gating.
+- `tests/test_auth.py` — the four refresh/logout security branches.
+- `tests/test_invariants.py` — cross-cutting properties: year bounds, PATCH empty-authors
+  → 409, FK RESTRICT on genre delete, similar-books scoring weights, import per-row
+  atomicity, 413 size cap, 429 rate limit.
+- `tests/test_unit.py` — pure-Python checks: the JWT `type="access"` contract and
+  `_split_names` separator handling.
 
-Each one came up. Each one costs review surface, test surface, ops surface. Each one is
-defensible to skip at this scope.
-
-- **Authorization roles.** The spec asks for authentication, not authorization. Every
-  authenticated user can mutate everything. Adding "admin can do X" without a real use case
-  in the brief would be ceremony.
-- **Email verification / password reset.** Real prod features. Not load-bearing for the
-  design discussion.
-- **Cursor pagination.** Offset is fine to ~100k rows for the access pattern shown. Switching
-  to keyset-on-`(created_at, id)` is contained when it actually bites.
-- **Full-text search.** Substring on `lower(title)` with an index covers the filter contract.
-  Real FTS (`tsvector`, `pg_trgm`) is justified once "relevance" is a requirement.
-- **Rate limiting.** The spec lists this as optional. In a real deploy, it lives in the
-  gateway/sidecar layer — not in app code. Worth adding on `/auth/login` for brute-force
-  protection if we keep this service public-facing.
-- **Soft delete.** `book_authors.author_id ON DELETE RESTRICT` and `genre_id ON DELETE
-  RESTRICT` already give the safety property `deleted_at` is usually invented for. Adding a
-  tombstone invites bugs in every query that forgets the filter.
-- **Caching.** Premature without a measured hot path.
-
----
-
-## Testing
-
-Tests run against **real Postgres** (`TEST_DATABASE_URL`). They are skipped automatically if
-Postgres isn't reachable.
-
-Mocked DBs were a deliberate non-choice. The most important contracts in this service —
-the case-insensitive unique indexes, the `published_year` CHECK, the genre/author FK
-behavior, the `updated_at` trigger, the M2M cascade — all live in Postgres. A mock that
-passes while those are wrong is worse than no test.
-
-What the tests actually verify (the spec says "we will look at what your tests verify"):
-
-- **PATCH semantics**: unset vs. null vs. unknown key vs. empty author list (three different
-  outcomes — 200 partial, 200 cleared, 422 forbid).
-- **List filter combinations**: title + author + genre + year range with case-insensitive
-  matching, plus the year-range cross-check (`year_from > year_to` is 422 before the DB
-  sees it).
-- **Author POST is strict 409 on case-insensitive duplicate** — not silently get-or-create.
-- **Books with unknown author IDs return 404**, not 500 from a FK violation.
-- **Auth gating**: mutating endpoints return 401; reads remain public.
-- **Token reuse detection** (`tests/test_auth.py:test_refresh_reuse_revokes_all_sessions`):
-  two devices, rotate device A, then present A's old token. Outcome: A's new token, B's
-  token, and the stale token are *all* revoked. Verifies the load-bearing
-  `session.commit()` in `auth/service.py:refresh_tokens`.
-- **Logout-only-target** (`:test_logout_revokes_only_target`): explicit logout of one device
-  does NOT escalate to global revoke. (This is what the `replaced_by_id IS NULL` branch
-  buys us.)
-- **Login timing** is roughly constant for "user not found" vs "wrong password" — both go
-  through argon2.verify so trivial enumeration via timing is blocked.
-- **Seeder partial failure** — exactly two rows fail and two succeed; the report identifies
-  which.
-- **Request id is echoed** in both `X-Request-ID` header and structured error bodies.
-- **`/health` reports DB status** truthfully — fails when DB is down.
-
-**Unit tests** (no DB, fast): `tests/test_unit_security.py` and
-`tests/test_unit_validation.py` cover the pure functions: password hash roundtrip, JWT
-tamper rejection, refresh token entropy, year validator bounds, CSV name splitter, row
-coercion. These run in ~200ms even without Postgres.
+Tests run against real Postgres (not mocks) because the load-bearing invariants — FK
+RESTRICT, CHECKs, case-insensitive functional indexes, the `updated_at` trigger — all live
+in the DB. A mock that passes while those are wrong is worse than no test.
 
 ---
 
@@ -389,7 +270,7 @@ coercion. These run in ~200ms even without Postgres.
 ```
 app/
   main.py              FastAPI app + middleware + handlers + /health
-  middleware.py        Request-ID + per-request access log
+  middleware.py        Request-ID + body-size limiter
   logging_config.py    JSON logging w/ request-id filter
   exceptions.py        Domain exceptions + handlers (IntegrityError → 409, Exception → 500)
   config/settings.py   pydantic-settings, env parsing, asyncpg URL fixup
@@ -397,31 +278,27 @@ app/
     session.py         async engine/session factory + DB dependency
     models.py          ORM mapping (NOT the schema source of truth)
   auth/
-    routes.py          /auth/register, /login, /refresh, /logout, /logout-all
-    service.py         Token issuance + rotation + reuse detection
-    security.py        Pure: argon2, JWT encode/decode, refresh-token generation
-    deps.py            get_current_user_id (Bearer extraction, no DB hit)
-    schemas.py
+    routes.py, service.py, security.py, deps.py, schemas.py
   books/
-    routes.py          CRUD + /export (auth-gated mutations)
-    service.py         Filter/sort/paginate, streaming export
-    bulk.py            Shared import logic for the seeder
+    routes.py          CRUD + /export + /import + /similar
+    service.py         Filter/sort/paginate; similar-books scoring; streaming export
+    bulk.py            CSV/JSON parse + per-row import w/ savepoints
+    import_deps.py     Per-user-per-hour rate limit
     schemas.py
-  authors/
-    routes.py, service.py, schemas.py
-  genres/
-    routes.py, schemas.py    Read-only list endpoint
-  seed.py              CLI: `python -m app.seed <file>`
+  authors/, genres/    routes.py, service.py, schemas.py
 
-migrations/
-  env.py
-  versions/0001_initial.py   Hand-written. Schema lives here.
+migrations/versions/
+  0001_initial.py                       Hand-written. Schema lives here.
+  0002_import_sessions.py
+  0003_genres_case_insensitive.py
+  0004_drop_authors_name_unique.py
 
 tests/
   conftest.py
-  test_books.py              Integration: routes, auth gating, observability
-  test_auth.py               Integration: login, rotation, reuse detection, logout
-  test_seed.py               Integration: seeder semantics
-  test_unit_security.py      Unit: argon2, JWT, refresh-token primitives
-  test_unit_validation.py    Unit: year validator, name splitter, row coercion
+  test_e2e.py          Full user journeys
+  test_auth.py         Refresh rotation + reuse detection + logout
+  test_invariants.py   Cross-cutting properties
+  test_unit.py         Pure-Python: JWT type contract, name splitter
+
+.github/workflows/ci.yml   Parallel lint + tests + docker build on push/PR.
 ```
