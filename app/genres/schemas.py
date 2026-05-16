@@ -5,9 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
-GenreName = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
-]
+GenreName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 
 
 class GenreRead(BaseModel):
@@ -25,6 +23,7 @@ class GenreCreate(BaseModel):
 class GenreUpdate(BaseModel):
     """Strict partial. Only `name` is mutable; `slug` is always derived from `name` to
     avoid drift between the two unique columns."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: GenreName | None = None

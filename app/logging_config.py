@@ -34,7 +34,9 @@ def configure_logging() -> None:
             rename_fields={"asctime": "ts", "levelname": "level"},
         )
     else:
-        fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s [rid=%(request_id)s]")
+        fmt = logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s %(message)s [rid=%(request_id)s]"
+        )
 
     handler.setFormatter(fmt)
     root.addHandler(handler)

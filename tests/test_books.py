@@ -59,7 +59,9 @@ async def test_create_returns_nested_author_and_genre(client, auth_headers):
 
 
 async def test_create_rejects_book_without_author(client, auth_headers):
-    r = await client.post("/books", json={"title": "Orphan", "author_ids": []}, headers=auth_headers)
+    r = await client.post(
+        "/books", json={"title": "Orphan", "author_ids": []}, headers=auth_headers
+    )
     assert r.status_code == 422
 
 
@@ -83,12 +85,16 @@ async def test_create_rejects_duplicate_author_ids_in_request(client, auth_heade
 async def test_year_validation_bounds(client, auth_headers):
     aid = await _author(client, auth_headers, "Y")
     r = await client.post(
-        "/books", json={"title": "Too old", "published_year": 1799, "author_ids": [aid]}, headers=auth_headers
+        "/books",
+        json={"title": "Too old", "published_year": 1799, "author_ids": [aid]},
+        headers=auth_headers,
     )
     assert r.status_code == 422
 
     r = await client.post(
-        "/books", json={"title": "Too new", "published_year": 9999, "author_ids": [aid]}, headers=auth_headers
+        "/books",
+        json={"title": "Too new", "published_year": 9999, "author_ids": [aid]},
+        headers=auth_headers,
     )
     assert r.status_code == 422
 
@@ -98,11 +104,20 @@ async def test_list_filters_and_sorts(client, auth_headers):
     scifi = await _genre_id(client, "Science Fiction")
     a1 = await _author(client, auth_headers, "X")
     a2 = await _author(client, auth_headers, "Y")
-    await _book(client, auth_headers, title="Aaa", published_year=2001, genre_id=scifi, author_ids=[a1])
-    await _book(client, auth_headers, title="Bbb", published_year=1999, genre_id=fantasy, author_ids=[a2])
-    await _book(client, auth_headers, title="Ccc", published_year=2010, genre_id=scifi, author_ids=[a1])
+    await _book(
+        client, auth_headers, title="Aaa", published_year=2001, genre_id=scifi, author_ids=[a1]
+    )
+    await _book(
+        client, auth_headers, title="Bbb", published_year=1999, genre_id=fantasy, author_ids=[a2]
+    )
+    await _book(
+        client, auth_headers, title="Ccc", published_year=2010, genre_id=scifi, author_ids=[a1]
+    )
 
-    r = await client.get("/books", params={"genre": "science fiction", "sort_by": "published_year", "sort_dir": "asc"})
+    r = await client.get(
+        "/books",
+        params={"genre": "science fiction", "sort_by": "published_year", "sort_dir": "asc"},
+    )
     body = r.json()
     assert body["total"] == 2
     assert [b["title"] for b in body["items"]] == ["Aaa", "Ccc"]
@@ -122,7 +137,9 @@ async def test_year_range_validation(client):
 async def test_patch_partial(client, auth_headers):
     book = await _book(client, auth_headers)
     new_genre = await _genre_id(client, "Mystery")
-    r = await client.patch(f"/books/{book['id']}", json={"genre_id": new_genre}, headers=auth_headers)
+    r = await client.patch(
+        f"/books/{book['id']}", json={"genre_id": new_genre}, headers=auth_headers
+    )
     assert r.status_code == 200
     assert r.json()["genre"]["name"] == "Mystery"
     assert r.json()["title"] == book["title"]
@@ -193,14 +210,29 @@ async def test_similar_books_scores_authors_above_genre(client, auth_headers):
     a_shared = await _author(client, auth_headers, "Shared Author")
     a_other = await _author(client, auth_headers, "Other Author")
 
-    src = await _book(client, auth_headers, title="Source", genre_id=fantasy, author_ids=[a_shared], published_year=2000)
-    await _book(
-        client, auth_headers, title="SameAuthor",
-        genre_id=await _genre_id(client, "Mystery"), author_ids=[a_shared], published_year=2000,
+    src = await _book(
+        client,
+        auth_headers,
+        title="Source",
+        genre_id=fantasy,
+        author_ids=[a_shared],
+        published_year=2000,
     )
     await _book(
-        client, auth_headers, title="SameGenre",
-        genre_id=fantasy, author_ids=[a_other], published_year=2000,
+        client,
+        auth_headers,
+        title="SameAuthor",
+        genre_id=await _genre_id(client, "Mystery"),
+        author_ids=[a_shared],
+        published_year=2000,
+    )
+    await _book(
+        client,
+        auth_headers,
+        title="SameGenre",
+        genre_id=fantasy,
+        author_ids=[a_other],
+        published_year=2000,
     )
 
     r = await client.get(f"/books/{src['id']}/similar")
@@ -224,12 +256,20 @@ async def test_similar_books_empty_when_no_matches(client, auth_headers):
     a1 = await _author(client, auth_headers, "Alone")
     a2 = await _author(client, auth_headers, "Different")
     src = await _book(
-        client, auth_headers, title="Solo",
-        genre_id=await _genre_id(client, "Fantasy"), author_ids=[a1], published_year=2000,
+        client,
+        auth_headers,
+        title="Solo",
+        genre_id=await _genre_id(client, "Fantasy"),
+        author_ids=[a1],
+        published_year=2000,
     )
     await _book(
-        client, auth_headers, title="Unrelated",
-        genre_id=await _genre_id(client, "Mystery"), author_ids=[a2], published_year=1850,
+        client,
+        auth_headers,
+        title="Unrelated",
+        genre_id=await _genre_id(client, "Mystery"),
+        author_ids=[a2],
+        published_year=1850,
     )
 
     r = await client.get(f"/books/{src['id']}/similar")
@@ -241,14 +281,22 @@ async def test_similar_books_paginates(client, auth_headers):
     fantasy = await _genre_id(client, "Fantasy")
     src_author = await _author(client, auth_headers, "Src Author")
     src = await _book(
-        client, auth_headers, title="Source", genre_id=fantasy,
-        author_ids=[src_author], published_year=2000,
+        client,
+        auth_headers,
+        title="Source",
+        genre_id=fantasy,
+        author_ids=[src_author],
+        published_year=2000,
     )
     for i in range(5):
         other = await _author(client, auth_headers, f"Author {i}")
         await _book(
-            client, auth_headers, title=f"Candidate {i}", genre_id=fantasy,
-            author_ids=[other], published_year=2000,
+            client,
+            auth_headers,
+            title=f"Candidate {i}",
+            genre_id=fantasy,
+            author_ids=[other],
+            published_year=2000,
         )
 
     r = await client.get(f"/books/{src['id']}/similar", params={"limit": 2, "offset": 0})

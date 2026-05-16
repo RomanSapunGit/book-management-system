@@ -118,4 +118,5 @@ class ImportSessionRead(BaseModel):
 class SimilarBookRead(BookRead):
     """A book + the similarity score used to rank it. Exposed so the client can render
     relevance ("matches author + genre")."""
+
     score: int

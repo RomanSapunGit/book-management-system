@@ -107,12 +107,14 @@ class _BodyTooLarge(Exception):
 
 async def _send_413(send: Send, limit: int) -> None:
     body = json.dumps({"detail": f"Upload exceeds {limit} bytes"}).encode()
-    await send({
-        "type": "http.response.start",
-        "status": 413,
-        "headers": [
-            (b"content-type", b"application/json"),
-            (b"content-length", str(len(body)).encode()),
-        ],
-    })
+    await send(
+        {
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        }
+    )
     await send({"type": "http.response.body", "body": body})

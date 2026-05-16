@@ -66,8 +66,13 @@ async def list_books(
     if year_from is not None and year_to is not None and year_from > year_to:
         raise HTTPException(status_code=422, detail="year_from must be <= year_to")
     filters = BookFilters(
-        title=title, author=author, author_id=author_id,
-        genre=genre, genre_id=genre_id, year_from=year_from, year_to=year_to,
+        title=title,
+        author=author,
+        author_id=author_id,
+        genre=genre,
+        genre_id=genre_id,
+        year_from=year_from,
+        year_to=year_to,
     )
     stmt = book_service.build_list_stmt(filters, sort_by=sort_by, sort_dir=sort_dir)
     return await apaginate(db, stmt)
@@ -89,8 +94,13 @@ async def export_books(
     year_to: int | None = None,
 ):
     filters = BookFilters(
-        title=title, author=author, author_id=author_id,
-        genre=genre, genre_id=genre_id, year_from=year_from, year_to=year_to,
+        title=title,
+        author=author,
+        author_id=author_id,
+        genre=genre,
+        genre_id=genre_id,
+        year_from=year_from,
+        year_to=year_to,
     )
     book_iter = book_service.iter_all_books(db, filters)
     if format == "csv":

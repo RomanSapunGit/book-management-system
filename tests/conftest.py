@@ -7,6 +7,7 @@ the case-insensitive email unique index, the `published_year` CHECK, the genre
 FK with RESTRICT, the M2M cascade behavior — live in Postgres. A mock that passes while those
 are wrong is worse than no test.
 """
+
 from __future__ import annotations
 
 import os
@@ -87,7 +88,9 @@ def _ensure_test_database() -> None:
     host, port = host_port.split(":")
 
     async def _go():
-        admin = await asyncpg.connect(user=user, password=password, host=host, port=int(port), database="postgres")
+        admin = await asyncpg.connect(
+            user=user, password=password, host=host, port=int(port), database="postgres"
+        )
         try:
             exists = await admin.fetchval("SELECT 1 FROM pg_database WHERE datname = $1", dbname)
             if not exists:
@@ -123,10 +126,18 @@ async def _engine():
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_lower ON users (lower(email))"))
-        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_genres_name_lower ON genres (lower(name))"))
-        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_genres_slug_lower ON genres (lower(slug))"))
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_books_title_lower ON books (lower(title))"))
+        await conn.execute(
+            text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_lower ON users (lower(email))")
+        )
+        await conn.execute(
+            text("CREATE UNIQUE INDEX IF NOT EXISTS uq_genres_name_lower ON genres (lower(name))")
+        )
+        await conn.execute(
+            text("CREATE UNIQUE INDEX IF NOT EXISTS uq_genres_slug_lower ON genres (lower(slug))")
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_books_title_lower ON books (lower(title))")
+        )
         # The model uses python-side `default=uuid4` for `id` (works through the ORM); the
         # migration adds `server_default=gen_random_uuid()`. We're not running migrations
         # here (create_all from metadata), so we provide the id explicitly.
@@ -134,7 +145,9 @@ async def _engine():
 
         for name, slug in SEED_GENRES:
             await conn.execute(
-                text("INSERT INTO genres (id, name, slug) VALUES (:id, :n, :s) ON CONFLICT DO NOTHING"),
+                text(
+                    "INSERT INTO genres (id, name, slug) VALUES (:id, :n, :s) ON CONFLICT DO NOTHING"
+                ),
                 {"id": _uuid.uuid4(), "n": name, "s": slug},
             )
     yield engine
@@ -150,6 +163,7 @@ async def _clean_tables(_engine):
         yield
         return
     import uuid as _uuid
+
     async with _engine.begin() as conn:
         await conn.execute(
             text(
@@ -175,7 +189,11 @@ async def client() -> AsyncIterator[AsyncClient]:
 @pytest_asyncio.fixture
 async def auth_headers(client: AsyncClient) -> dict[str, str]:
     """A registered+logged-in user. Tests that need to call mutating endpoints use this."""
-    await client.post("/auth/register", json={"email": "alice@example.com", "password": "correct-horse-battery"})
-    r = await client.post("/auth/login", json={"email": "alice@example.com", "password": "correct-horse-battery"})
+    await client.post(
+        "/auth/register", json={"email": "alice@example.com", "password": "correct-horse-battery"}
+    )
+    r = await client.post(
+        "/auth/login", json={"email": "alice@example.com", "password": "correct-horse-battery"}
+    )
     body = r.json()
     return {"Authorization": f"Bearer {body['access_token']}"}

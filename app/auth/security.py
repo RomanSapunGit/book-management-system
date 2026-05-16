@@ -2,6 +2,7 @@
 
 Pure functions — no DB, no IO. Easy to unit-test.
 """
+
 from __future__ import annotations
 
 import hashlib

@@ -7,6 +7,7 @@ Trade-off: one extra indexed SELECT per /books/import call. Acceptable because t
 is low-frequency by design. Cluster-wide accuracy: holds (DB is shared). Survives restart:
 yes.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

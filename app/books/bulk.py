@@ -7,6 +7,7 @@ transaction or rolls back to its savepoint, leaving its neighbors untouched. Thi
 "atomic per record" buys you: a row's FK violation, unique violation, or validation error
 does not poison the rest of the batch.
 """
+
 from __future__ import annotations
 
 import csv

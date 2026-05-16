@@ -19,9 +19,7 @@ async def create_author(session: AsyncSession, *, name: str, bio: str | None) ->
     return author
 
 
-async def create_authors_from_names(
-    session: AsyncSession, names: Iterable[str]
-) -> list[Author]:
+async def create_authors_from_names(session: AsyncSession, names: Iterable[str]) -> list[Author]:
     """Bulk-create one Author row per input name. No deduplication: a name appearing twice
     in `names` produces two distinct Author rows, mirroring how a CSV row with repeated
     authors honestly cannot prove they're the same person."""

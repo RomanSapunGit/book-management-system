@@ -71,7 +71,9 @@ def install_exception_handlers(app: FastAPI) -> None:
         log.warning("integrity error: %s", msg, extra={"request_id": _rid(request)})
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
-            content=_body("Constraint violation", _rid(request), db_error=msg.splitlines()[0][:300]),
+            content=_body(
+                "Constraint violation", _rid(request), db_error=msg.splitlines()[0][:300]
+            ),
         )
 
     @app.exception_handler(RequestValidationError)

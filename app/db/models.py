@@ -30,8 +30,18 @@ class Base(DeclarativeBase):
 book_authors = Table(
     "book_authors",
     Base.metadata,
-    Column("book_id", PG_UUID(as_uuid=True), ForeignKey("books.id", ondelete="CASCADE"), primary_key=True),
-    Column("author_id", PG_UUID(as_uuid=True), ForeignKey("authors.id", ondelete="RESTRICT"), primary_key=True),
+    Column(
+        "book_id",
+        PG_UUID(as_uuid=True),
+        ForeignKey("books.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "author_id",
+        PG_UUID(as_uuid=True),
+        ForeignKey("authors.id", ondelete="RESTRICT"),
+        primary_key=True,
+    ),
     Index("ix_book_authors_author_id", "author_id"),
 )
 
@@ -71,7 +81,9 @@ class Book(Base):
     __table_args__ = (
         # Lower bound is the brief's `>= 1800`. Upper bound (`<= current_year`) is enforced at the
         # Pydantic layer because Postgres CHECK constraints must be IMMUTABLE — `now()` isn't.
-        CheckConstraint("published_year IS NULL OR published_year >= 1800", name="ck_books_published_year_min"),
+        CheckConstraint(
+            "published_year IS NULL OR published_year >= 1800", name="ck_books_published_year_min"
+        ),
         Index("ix_books_genre_id", "genre_id"),
         Index("ix_books_published_year", "published_year"),
         # `ix_books_title_lower` (functional, lower(title)) is created in the migration only.

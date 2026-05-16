@@ -32,7 +32,9 @@ async def test_import_json_partial_failure(client, auth_headers):
             {"title": "Bad year", "genre": "Fiction", "authors": ["D"], "published_year": 1500},
         ]
     }
-    r = await client.post("/books/import", files={"file": _json_file(payload)}, headers=auth_headers)
+    r = await client.post(
+        "/books/import", files={"file": _json_file(payload)}, headers=auth_headers
+    )
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["status"] == "completed"
@@ -104,7 +106,9 @@ async def test_import_invalid_json_is_a_session_failure(client, auth_headers):
 async def test_import_session_appears_in_list(client, auth_headers):
     r = await client.post(
         "/books/import",
-        files={"file": _json_file({"books": [{"title": "T", "genre": "Fiction", "authors": ["A"]}]})},
+        files={
+            "file": _json_file({"books": [{"title": "T", "genre": "Fiction", "authors": ["A"]}]})
+        },
         headers=auth_headers,
     )
     session_id = r.json()["id"]
@@ -120,12 +124,20 @@ async def test_import_session_appears_in_list(client, auth_headers):
 async def test_import_session_isolation_between_users(client, auth_headers):
     await client.post(
         "/books/import",
-        files={"file": _json_file({"books": [{"title": "T", "genre": "Fiction", "authors": ["A"]}]})},
+        files={
+            "file": _json_file({"books": [{"title": "T", "genre": "Fiction", "authors": ["A"]}]})
+        },
         headers=auth_headers,
     )
 
-    await client.post("/auth/register", json={"email": "other@example.com", "password": "another-strong-pass"})
-    pair = (await client.post("/auth/login", json={"email": "other@example.com", "password": "another-strong-pass"})).json()
+    await client.post(
+        "/auth/register", json={"email": "other@example.com", "password": "another-strong-pass"}
+    )
+    pair = (
+        await client.post(
+            "/auth/login", json={"email": "other@example.com", "password": "another-strong-pass"}
+        )
+    ).json()
     other_headers = {"Authorization": f"Bearer {pair['access_token']}"}
 
     r = await client.get("/books/import", headers=other_headers)

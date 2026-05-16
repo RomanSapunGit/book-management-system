@@ -6,6 +6,7 @@ Revision ID: 0001
 Revises:
 Create Date: 2026-05-15
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -46,7 +47,12 @@ def upgrade() -> None:
 
     op.create_table(
         "genres",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("name", sa.String(100), nullable=False),
         sa.Column("slug", sa.String(100), nullable=False),
         sa.UniqueConstraint("name", name="uq_genres_name"),
@@ -55,11 +61,26 @@ def upgrade() -> None:
 
     op.create_table(
         "authors",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("bio", sa.Text, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.UniqueConstraint("name", name="uq_authors_name"),
     )
     # Case-insensitive uniqueness — "Tolkien" and "TOLKIEN" must not coexist.
@@ -67,7 +88,12 @@ def upgrade() -> None:
 
     op.create_table(
         "books",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("title", sa.String(500), nullable=False),
         sa.Column(
             "genre_id",
@@ -78,11 +104,23 @@ def upgrade() -> None:
         ),
         sa.Column("published_year", sa.Integer, nullable=True),
         sa.Column("description", sa.Text, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         # Lower bound only at the DB. Upper bound (≤ current_year) is at the Pydantic layer
         # because CHECK must be immutable.
-        sa.CheckConstraint("published_year IS NULL OR published_year >= 1800", name="ck_books_published_year_min"),
+        sa.CheckConstraint(
+            "published_year IS NULL OR published_year >= 1800", name="ck_books_published_year_min"
+        ),
     )
     op.create_index("ix_books_genre_id", "books", ["genre_id"])
     op.create_index("ix_books_published_year", "books", ["published_year"])
@@ -90,20 +128,45 @@ def upgrade() -> None:
 
     op.create_table(
         "book_authors",
-        sa.Column("book_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("books.id", ondelete="CASCADE"), primary_key=True),
+        sa.Column(
+            "book_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("books.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
         # RESTRICT, not CASCADE: deleting an author with books is data loss by accident.
-        sa.Column("author_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("authors.id", ondelete="RESTRICT"), primary_key=True),
+        sa.Column(
+            "author_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("authors.id", ondelete="RESTRICT"),
+            primary_key=True,
+        ),
     )
     op.create_index("ix_book_authors_author_id", "book_authors", ["author_id"])
 
     # --- Auth ---
     op.create_table(
         "users",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("email", sa.String(255), nullable=False),
         sa.Column("password_hash", sa.String(255), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.UniqueConstraint("email", name="uq_users_email"),
     )
     # Case-insensitive email uniqueness. Mixed-case emails should not become separate accounts.
@@ -111,13 +174,28 @@ def upgrade() -> None:
 
     op.create_table(
         "refresh_tokens",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("token_hash", sa.String(64), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("replaced_by_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.UniqueConstraint("token_hash", name="uq_refresh_tokens_hash"),
     )
     op.create_index("ix_refresh_tokens_user_id", "refresh_tokens", ["user_id"])

@@ -37,7 +37,9 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = Field(default=15, alias="ACCESS_TOKEN_TTL_MINUTES", ge=1)
     refresh_token_ttl_days: int = Field(default=30, alias="REFRESH_TOKEN_TTL_DAYS", ge=1)
 
-    bulk_import_chunk_size: int = Field(default=500, alias="BULK_IMPORT_CHUNK_SIZE", ge=1, le=10_000)
+    bulk_import_chunk_size: int = Field(
+        default=500, alias="BULK_IMPORT_CHUNK_SIZE", ge=1, le=10_000
+    )
     bulk_import_max_rows: int = Field(default=50_000, alias="BULK_IMPORT_MAX_ROWS", ge=1)
     # 2 MiB. Enforced by MaxBodySizeMiddleware. In production, also set nginx
     # `client_max_body_size` to match (primary gate; this is defense-in-depth).
@@ -50,12 +52,8 @@ class Settings(BaseSettings):
         default="dummy-password-for-timing-equalization", alias="AUTH_DUMMY_PASSWORD"
     )
 
-    import_rate_limit_per_window: int = Field(
-        default=5, alias="IMPORT_RATE_LIMIT_PER_HOUR", ge=1
-    )
-    import_rate_window_seconds: int = Field(
-        default=3600, alias="IMPORT_RATE_WINDOW_SECONDS", ge=1
-    )
+    import_rate_limit_per_window: int = Field(default=5, alias="IMPORT_RATE_LIMIT_PER_HOUR", ge=1)
+    import_rate_window_seconds: int = Field(default=3600, alias="IMPORT_RATE_WINDOW_SECONDS", ge=1)
 
     @property
     def import_rate_window(self) -> timedelta:

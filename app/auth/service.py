@@ -85,7 +85,9 @@ async def refresh_tokens(session: AsyncSession, *, presented: str) -> TokenPair:
         #     copy they shouldn't have. Assume theft and revoke every session for the user.
         #   - it was explicitly logged out (`replaced_by_id` null) → boring; just refuse.
         if row.replaced_by_id is not None:
-            log.warning("refresh-token reuse detected user_id=%s — revoking all sessions", row.user_id)
+            log.warning(
+                "refresh-token reuse detected user_id=%s — revoking all sessions", row.user_id
+            )
             await _revoke_all_for_user(session, row.user_id)
             await session.commit()  # persist the revocation BEFORE the rollback-on-raise.
             raise UnauthorizedError("Refresh token reuse detected; all sessions revoked")
@@ -95,7 +97,9 @@ async def refresh_tokens(session: AsyncSession, *, presented: str) -> TokenPair:
     new_pair = await issue_tokens(session, row.user_id)
     new_row = (
         await session.execute(
-            select(RefreshToken).where(RefreshToken.token_hash == security.hash_refresh_token(new_pair.refresh_token))
+            select(RefreshToken).where(
+                RefreshToken.token_hash == security.hash_refresh_token(new_pair.refresh_token)
+            )
         )
     ).scalar_one()
     row.revoked_at = now

@@ -51,7 +51,9 @@ def test_split_names_handles_list_input():
 
 
 def test_row_to_payload_csv_shape():
-    out = _row_to_payload({"title": "X", "authors": "A;B", "published_year": "2000", "genre": "Fiction"})
+    out = _row_to_payload(
+        {"title": "X", "authors": "A;B", "published_year": "2000", "genre": "Fiction"}
+    )
     assert out["title"] == "X"
     assert out["authors"] == ["A", "B"]
     assert out["published_year"] == 2000

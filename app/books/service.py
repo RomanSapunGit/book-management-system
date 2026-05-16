@@ -80,9 +80,7 @@ async def get_book(session: AsyncSession, book_id: UUID) -> Book:
 async def _validate_authors(session: AsyncSession, author_ids: list[UUID]) -> list[Author]:
     if not author_ids:
         return []
-    rows = (
-        await session.execute(select(Author).where(Author.id.in_(author_ids)))
-    ).scalars().all()
+    rows = (await session.execute(select(Author).where(Author.id.in_(author_ids)))).scalars().all()
     found = {a.id for a in rows}
     missing = [i for i in author_ids if i not in found]
     if missing:
