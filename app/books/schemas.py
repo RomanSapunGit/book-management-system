@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.authors.schemas import AuthorRead
 from app.genres.schemas import GenreRead
@@ -13,7 +20,7 @@ NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length
 
 
 def _current_year() -> int:
-    return datetime.now(timezone.utc).year
+    return datetime.now(UTC).year
 
 
 def validate_year(v: int | None) -> int | None:

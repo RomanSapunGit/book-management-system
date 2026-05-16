@@ -194,11 +194,11 @@ async def test_similar_books_scores_authors_above_genre(client, auth_headers):
     a_other = await _author(client, auth_headers, "Other Author")
 
     src = await _book(client, auth_headers, title="Source", genre_id=fantasy, author_ids=[a_shared], published_year=2000)
-    same_author = await _book(
+    await _book(
         client, auth_headers, title="SameAuthor",
         genre_id=await _genre_id(client, "Mystery"), author_ids=[a_shared], published_year=2000,
     )
-    same_genre = await _book(
+    await _book(
         client, auth_headers, title="SameGenre",
         genre_id=fantasy, author_ids=[a_other], published_year=2000,
     )

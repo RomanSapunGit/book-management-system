@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -52,7 +52,7 @@ async def issue_tokens(session: AsyncSession, user_id: UUID) -> TokenPair:
     record = RefreshToken(
         user_id=user_id,
         token_hash=security.hash_refresh_token(refresh_raw),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_ttl_days),
+        expires_at=datetime.now(UTC) + timedelta(days=settings.refresh_token_ttl_days),
     )
     session.add(record)
     await session.flush()
@@ -74,8 +74,8 @@ async def refresh_tokens(session: AsyncSession, *, presented: str) -> TokenPair:
     if row is None:
         raise UnauthorizedError("Invalid refresh token")
 
-    now = datetime.now(timezone.utc)
-    expires_at = row.expires_at if row.expires_at.tzinfo else row.expires_at.replace(tzinfo=timezone.utc)
+    now = datetime.now(UTC)
+    expires_at = row.expires_at if row.expires_at.tzinfo else row.expires_at.replace(tzinfo=UTC)
     if expires_at < now:
         raise UnauthorizedError("Refresh token expired")
 
@@ -110,7 +110,7 @@ async def revoke(session: AsyncSession, *, presented: str) -> None:
     await session.execute(
         update(RefreshToken)
         .where(RefreshToken.token_hash == token_hash, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=datetime.now(timezone.utc))
+        .values(revoked_at=datetime.now(UTC))
     )
 
 
@@ -122,5 +122,5 @@ async def _revoke_all_for_user(session: AsyncSession, user_id: UUID) -> None:
     await session.execute(
         update(RefreshToken)
         .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=datetime.now(timezone.utc))
+        .values(revoked_at=datetime.now(UTC))
     )

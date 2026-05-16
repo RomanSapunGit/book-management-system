@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Author

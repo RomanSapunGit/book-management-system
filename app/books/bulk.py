@@ -13,8 +13,8 @@ import csv
 import io
 import json
 import logging
-from collections.abc import AsyncIterator, Iterator
-from datetime import datetime, timezone
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -22,9 +22,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.authors import service as author_service
-from app.books.schemas import BulkImportError, validate_year
+from app.books.schemas import validate_year
 from app.config import settings
 from app.db.models import Book, Genre, ImportSession
+
 log = logging.getLogger(__name__)
 
 
@@ -114,7 +115,7 @@ async def run_import(
     owns committing the outer transaction.
     """
     session_record.status = "running"
-    session_record.started_at = datetime.now(timezone.utc)
+    session_record.started_at = datetime.now(UTC)
     await session.flush()
 
     errors: list[dict] = []
@@ -147,7 +148,7 @@ async def run_import(
     session_record.errors = errors
     session_record.error_count_total = error_count_total
     session_record.status = "completed"
-    session_record.completed_at = datetime.now(timezone.utc)
+    session_record.completed_at = datetime.now(UTC)
     await session.flush()
     return session_record
 

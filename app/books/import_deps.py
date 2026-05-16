@@ -9,7 +9,7 @@ yes.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import Depends, HTTPException
@@ -26,7 +26,7 @@ async def enforce_import_rate_limit(
     user_id: UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db_session),
 ) -> UUID:
-    cutoff = datetime.now(timezone.utc) - settings.import_rate_window
+    cutoff = datetime.now(UTC) - settings.import_rate_window
     count = await db.scalar(
         select(func.count())
         .select_from(ImportSession)

@@ -5,14 +5,13 @@ import logging
 import os
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from alembic import context
-
 from app.config import settings
-from app.db.models import Base  # noqa: F401  -- ensures metadata is populated
+from app.db.models import Base
 
 config = context.config
 
@@ -47,18 +46,18 @@ def do_run_migrations(connection: Connection) -> None:
 async def run_async_migrations() -> None:
     section = config.get_section(config.config_ini_section, {})
     url = _url()
-    
+
     # Redact URL for logging
     redacted_url = url
     if "@" in url:
         prefix, suffix = url.split("@", 1)
         if "//" in prefix:
-            scheme, auth = prefix.split("//", 1)
+            scheme, _auth = prefix.split("//", 1)
             redacted_url = f"{scheme}//****@{suffix}"
-    
+
     logger = logging.getLogger("alembic.runtime.migration")
     logger.info("Connecting to database: %s", redacted_url)
-    
+
     section["sqlalchemy.url"] = url
     connectable = async_engine_from_config(section, prefix="sqlalchemy.", poolclass=pool.NullPool)
     try:

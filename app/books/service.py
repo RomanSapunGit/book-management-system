@@ -8,8 +8,8 @@ from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.exceptions import NotFoundError
 from app.db.models import Author, Book, Genre, book_authors
+from app.exceptions import NotFoundError
 
 SORT_COLUMNS = {
     "title": Book.title,
@@ -214,10 +214,7 @@ async def similar_books_stmt(session: AsyncSession, book_id: UUID) -> Select:
         .options(selectinload(Book.authors))
         .order_by(score.desc(), Book.created_at.desc(), Book.id)
     )
-    if candidates:
-        stmt = stmt.where(or_(*candidates))
-    else:
-        stmt = stmt.where(False)
+    stmt = stmt.where(or_(*candidates)) if candidates else stmt.where(False)
     return stmt
 
 

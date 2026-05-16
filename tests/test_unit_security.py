@@ -4,12 +4,12 @@ import os
 
 os.environ.setdefault("JWT_SECRET", "unit-test-secret")
 
-import time  # noqa: E402
-from uuid import uuid4  # noqa: E402
+import time
+from uuid import uuid4
 
-import pytest  # noqa: E402
+import pytest
 
-from app.auth.security import (  # noqa: E402
+from app.auth.security import (
     TokenError,
     decode_access_token,
     encode_access_token,

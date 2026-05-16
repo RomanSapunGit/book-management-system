@@ -12,7 +12,6 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncIterator
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
@@ -29,13 +28,13 @@ else:
 os.environ.setdefault("JWT_SECRET", "test-secret-do-not-use-in-prod-xxxx")
 os.environ.setdefault("LOG_FORMAT", "plain")
 
-from sqlalchemy import text  # noqa: E402
-from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.config import settings  # noqa: E402
-from app.db import get_session_factory  # noqa: E402
-from app.db.models import Base  # noqa: E402
-from app.main import app  # noqa: E402
+from app.config import settings
+from app.db import get_session_factory
+from app.db.models import Base
+from app.main import app
 
 # Genres seeded by the migration; tests use them by name.
 SEED_GENRES = [
@@ -78,6 +77,7 @@ def _ensure_test_database() -> None:
     admin DB `postgres` to issue CREATE DATABASE — that's the conventional path.
     """
     import asyncio
+
     import asyncpg
 
     url = settings.normalized_database_url  # postgresql+asyncpg://user:pw@host:port/dbname
@@ -97,12 +97,12 @@ def _ensure_test_database() -> None:
         finally:
             await admin.close()
 
-    try:
-        asyncio.run(_go())
-    except Exception:
+    import contextlib
+
+    with contextlib.suppress(Exception):
         # If we can't create the DB (permissions, etc.), the engine fixture will surface
         # the real error. Don't mask it here.
-        pass
+        asyncio.run(_go())
 
 
 pg_available = _pg_available()

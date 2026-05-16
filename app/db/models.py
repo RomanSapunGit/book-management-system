@@ -16,7 +16,8 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -60,7 +61,7 @@ class Author(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    books: Mapped[list["Book"]] = relationship(
+    books: Mapped[list[Book]] = relationship(
         "Book", secondary=book_authors, back_populates="authors", lazy="selectin"
     )
 

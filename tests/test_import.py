@@ -42,7 +42,7 @@ async def test_import_json_partial_failure(client, auth_headers):
     rows_with_errors = {e["row"] for e in body["errors"]}
     assert rows_with_errors == {2, 4}
     for e in body["errors"]:
-        assert "reason" in e and e["reason"]
+        assert e.get("reason")
 
     r = await client.get("/books")
     titles = {b["title"] for b in r.json()["items"]}

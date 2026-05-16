@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import jwt
@@ -46,7 +46,7 @@ class TokenError(Exception):
 def encode_access_token(user_id: UUID) -> tuple[str, int]:
     """Returns (token, ttl_seconds). TTL is returned so the route can echo it to the client."""
     ttl_seconds = settings.access_token_ttl_minutes * 60
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
         "iat": int(now.timestamp()),

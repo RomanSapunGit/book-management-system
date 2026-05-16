@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -10,7 +10,7 @@ from app.books.schemas import validate_year
 
 def test_validate_year_accepts_bounds():
     assert validate_year(1800) == 1800
-    current = datetime.now(timezone.utc).year
+    current = datetime.now(UTC).year
     assert validate_year(current) == current
 
 
@@ -20,7 +20,7 @@ def test_validate_year_rejects_below_1800():
 
 
 def test_validate_year_rejects_future():
-    future = datetime.now(timezone.utc).year + 1
+    future = datetime.now(UTC).year + 1
     with pytest.raises(ValueError):
         validate_year(future)
 
