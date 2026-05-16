@@ -16,8 +16,10 @@ cp .env.example .env
 # python -c "import secrets; print(secrets.token_urlsafe(64))"
 
 docker compose up --build
-# API:    http://localhost:8000/docs
-# Health: http://localhost:8000/health
+# Swagger UI:  http://localhost:8000/docs       — interactive, "Try it out"
+# ReDoc:       http://localhost:8000/redoc      — read-only, hand to consumers
+# OpenAPI:     http://localhost:8000/openapi.json
+# Health:      http://localhost:8000/health
 ```
 
 Migrations run automatically on container boot. To run against a local DB without Docker:
