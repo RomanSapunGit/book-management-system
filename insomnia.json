@@ -1,0 +1,231 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_source": "book-management-system",
+  "resources": [
+    {
+      "_id": "wrk_bms",
+      "_type": "workspace",
+      "name": "Book Management API",
+      "description": "All endpoints. Set base_url, access_token, refresh_token in the Base env.",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_bms",
+      "name": "Base",
+      "data": {
+        "base_url": "http://localhost:8000",
+        "access_token": "",
+        "refresh_token": "",
+        "email": "alice@example.com",
+        "password": "correct-horse-battery",
+        "book_id": "",
+        "author_id": "",
+        "genre_id": ""
+      }
+    },
+
+    {"_id": "fld_auth", "_type": "request_group", "parentId": "wrk_bms", "name": "Auth"},
+    {
+      "_id": "req_register", "_type": "request", "parentId": "fld_auth",
+      "name": "POST /auth/register", "method": "POST",
+      "url": "{{ base_url }}/auth/register",
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {"mimeType": "application/json", "text": "{\n  \"email\": \"{{ email }}\",\n  \"password\": \"{{ password }}\"\n}"}
+    },
+    {
+      "_id": "req_login", "_type": "request", "parentId": "fld_auth",
+      "name": "POST /auth/login", "method": "POST",
+      "url": "{{ base_url }}/auth/login",
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {"mimeType": "application/json", "text": "{\n  \"email\": \"{{ email }}\",\n  \"password\": \"{{ password }}\"\n}"},
+      "description": "Copy `access_token` and `refresh_token` from the response into the Base env."
+    },
+    {
+      "_id": "req_refresh", "_type": "request", "parentId": "fld_auth",
+      "name": "POST /auth/refresh", "method": "POST",
+      "url": "{{ base_url }}/auth/refresh",
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {"mimeType": "application/json", "text": "{\n  \"refresh_token\": \"{{ refresh_token }}\"\n}"}
+    },
+    {
+      "_id": "req_logout", "_type": "request", "parentId": "fld_auth",
+      "name": "POST /auth/logout", "method": "POST",
+      "url": "{{ base_url }}/auth/logout",
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {"mimeType": "application/json", "text": "{\n  \"refresh_token\": \"{{ refresh_token }}\"\n}"}
+    },
+    {
+      "_id": "req_logout_all", "_type": "request", "parentId": "fld_auth",
+      "name": "POST /auth/logout-all", "method": "POST",
+      "url": "{{ base_url }}/auth/logout-all",
+      "authentication": {"type": "bearer", "token": "{{ access_token }}"}
+    },
+
+    {"_id": "fld_books", "_type": "request_group", "parentId": "wrk_bms", "name": "Books"},
+    {
+      "_id": "req_books_list", "_type": "request", "parentId": "fld_books",
+      "name": "GET /books", "method": "GET",
+      "url": "{{ base_url }}/books",
+      "parameters": [
+        {"name": "title", "value": "", "disabled": true},
+        {"name": "author", "value": "", "disabled": true},
+        {"name": "author_id", "value": "", "disabled": true},
+        {"name": "genre", "value": "", "disabled": true},
+        {"name": "genre_id", "value": "", "disabled": true},
+        {"name": "year_from", "value": "", "disabled": true},
+        {"name": "year_to", "value": "", "disabled": true},
+        {"name": "sort_by", "value": "created_at", "disabled": true},
+        {"name": "sort_dir", "value": "desc", "disabled": true},
+        {"name": "limit", "value": "50", "disabled": true},
+        {"name": "offset", "value": "0", "disabled": true}
+      ]
+    },
+    {
+      "_id": "req_books_get", "_type": "request", "parentId": "fld_books",
+      "name": "GET /books/{id}", "method": "GET",
+      "url": "{{ base_url }}/books/{{ book_id }}"
+    },
+    {
+      "_id": "req_books_create", "_type": "request", "parentId": "fld_books",
+      "name": "POST /books", "method": "POST",
+      "url": "{{ base_url }}/books",
+      "authentication": {"type": "bearer", "token": "{{ access_token }}"},
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {"mimeType": "application/json", "text": "{\n  \"title\": \"The Hobbit\",\n  \"genre_id\": \"{{ genre_id }}\",\n  \"published_year\": 1937,\n  \"description\": \"Bilbo's unexpected journey.\",\n  \"author_ids\": [\"{{ author_id }}\"]\n}"}
+    },
+    {
+      "_id": "req_books_patch", "_type": "request", "parentId": "fld_books",
+      "name": "PATCH /books/{id}", "method": "PATCH",
+      "url": "{{ base_url }}/books/{{ book_id }}",
+      "authentication": {"type": "bearer", "token": "{{ access_token }}"},
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {"mimeType": "application/json", "text": "{\n  \"description\": \"Updated.\"\n}"},
+      "description": "Strict partial. `null` clears nullable fields. Unknown keys → 422. Empty `author_ids` → 409."
+    },
+    {
+      "_id": "req_books_delete", "_type": "request", "parentId": "fld_books",
+      "name": "DELETE /books/{id}", "method": "DELETE",
+      "url": "{{ base_url }}/books/{{ book_id }}",
+      "authentication": {"type": "bearer", "token": "{{ access_token }}"}
+    },
+    {
+      "_id": "req_books_export", "_type": "request", "parentId": "fld_books",
+      "name": "GET /books/export", "method": "GET",
+      "url": "{{ base_url }}/books/export",
+      "parameters": [
+        {"name": "format", "value": "json"},
+        {"name": "genre", "value": "", "disabled": true}
+      ]
+    },
+    {
+      "_id": "req_books_import", "_type": "request", "parentId": "fld_books",
+      "name": "POST /books/import", "method": "POST",
+      "url": "{{ base_url }}/books/import",
+      "authentication": {"type": "bearer", "token": "{{ access_token }}"},
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {"name": "file", "type": "file", "fileName": "", "description": "CSV or JSON. CSV columns: title,author_ids,genre_id,published_year,description (author_ids semicolon-separated). JSON: list of {title, author_ids:[uuid], genre_id, published_year, description}."}
+        ]
+      },
+      "description": "Auth required. 2 MiB cap (BULK_IMPORT_MAX_BYTES). Rate-limited 5/hour/user. Per-row atomic — bad rows reported, good rows committed."
+    },
+    {
+      "_id": "req_books_import_list", "_type": "request", "parentId": "fld_books",
+      "name": "GET /books/import", "method": "GET",
+      "url": "{{ base_url }}/books/import",
+      "authentication": {"type": "bearer", "token": "{{ access_token }}"},
+      "parameters": [
+        {"name": "limit", "value": "50", "disabled": true},
+        {"name": "offset", "value": "0", "disabled": true}
+      ],
+      "description": "Caller's own import history (audit log), newest first. Strictly scoped to the authenticated user."
+    },
+    {
+      "_id": "req_books_similar", "_type": "request", "parentId": "fld_books",
+      "name": "GET /books/{id}/similar", "method": "GET",
+      "url": "{{ base_url }}/books/{{ book_id }}/similar",
+      "parameters": [{"name": "limit", "value": "10", "disabled": true}],
+      "description": "Top-N recommendations. Scoring: shared author 3, same genre 2, year ±5 = 1. No pagination — limit only."
+    },
+
+    {"_id": "fld_authors", "_type": "request_group", "parentId": "wrk_bms", "name": "Authors"},
+    {
+      "_id": "req_authors_list", "_type": "request", "parentId": "fld_authors",
+      "name": "GET /authors", "method": "GET",
+      "url": "{{ base_url }}/authors",
+      "parameters": [
+        {"name": "q", "value": "", "disabled": true},
+        {"name": "limit", "value": "50", "disabled": true},
+        {"name": "offset", "value": "0", "disabled": true}
+      ]
+    },
+    {
+      "_id": "req_authors_get", "_type": "request", "parentId": "fld_authors",
+      "name": "GET /authors/{id}", "method": "GET",
+      "url": "{{ base_url }}/authors/{{ author_id }}"
+    },
+    {
+      "_id": "req_authors_create", "_type": "request", "parentId": "fld_authors",
+      "name": "POST /authors", "method": "POST",
+      "url": "{{ base_url }}/authors",
+      "authentication": {"type": "bearer", "token": "{{ access_token }}"},
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {"mimeType": "application/json", "text": "{\n  \"name\": \"J. R. R. Tolkien\",\n  \"bio\": null\n}"},
+      "description": "Strict 409 on case-insensitive duplicate."
+    },
+
+    {"_id": "fld_genres", "_type": "request_group", "parentId": "wrk_bms", "name": "Genres"},
+    {
+      "_id": "req_genres_list", "_type": "request", "parentId": "fld_genres",
+      "name": "GET /genres", "method": "GET",
+      "url": "{{ base_url }}/genres",
+      "parameters": [
+        {"name": "limit", "value": "50", "disabled": true},
+        {"name": "offset", "value": "0", "disabled": true}
+      ],
+      "description": "Paginated LimitOffsetPage. Seeded with 15 defaults at first migration; appendable via POST."
+    },
+    {
+      "_id": "req_genres_get", "_type": "request", "parentId": "fld_genres",
+      "name": "GET /genres/{id}", "method": "GET",
+      "url": "{{ base_url }}/genres/{{ genre_id }}"
+    },
+    {
+      "_id": "req_genres_create", "_type": "request", "parentId": "fld_genres",
+      "name": "POST /genres", "method": "POST",
+      "url": "{{ base_url }}/genres",
+      "authentication": {"type": "bearer", "token": "{{ access_token }}"},
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {"mimeType": "application/json", "text": "{\n  \"name\": \"Cyberpunk\"\n}"},
+      "description": "Slug auto-derived from name. 409 on case-insensitive duplicate of name or slug."
+    },
+    {
+      "_id": "req_genres_patch", "_type": "request", "parentId": "fld_genres",
+      "name": "PATCH /genres/{id}", "method": "PATCH",
+      "url": "{{ base_url }}/genres/{{ genre_id }}",
+      "authentication": {"type": "bearer", "token": "{{ access_token }}"},
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": {"mimeType": "application/json", "text": "{\n  \"name\": \"Post-Cyberpunk\"\n}"},
+      "description": "Only `name` is mutable; slug is always re-derived. Unknown keys → 422."
+    },
+    {
+      "_id": "req_genres_delete", "_type": "request", "parentId": "fld_genres",
+      "name": "DELETE /genres/{id}", "method": "DELETE",
+      "url": "{{ base_url }}/genres/{{ genre_id }}",
+      "authentication": {"type": "bearer", "token": "{{ access_token }}"},
+      "description": "409 if any book still references this genre (FK RESTRICT)."
+    },
+
+    {"_id": "fld_system", "_type": "request_group", "parentId": "wrk_bms", "name": "System"},
+    {
+      "_id": "req_health", "_type": "request", "parentId": "fld_system",
+      "name": "GET /health", "method": "GET",
+      "url": "{{ base_url }}/health",
+      "description": "{status, db: ok|down}. 2s timeout on the DB check."
+    }
+  ]
+}
