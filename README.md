@@ -47,6 +47,44 @@ CI runs all three (lint, tests, docker build) on every push and PR — see
 
 ---
 
+## Environment
+
+Loaded by `pydantic-settings` from `.env` (or process env). See `.env.example` for a
+copy-pasteable starting point.
+
+### Required in production
+
+| Variable | Why |
+|---|---|
+| `JWT_SECRET` | Signs access tokens. **Must be set** to a real high-entropy value in prod — the default (`changeme-do-not-use-in-prod`) makes every token forgeable. Generate with `python -c "import secrets; print(secrets.token_urlsafe(64))"`. |
+| `DATABASE_URL` | Postgres DSN. `postgres://` and `postgresql://` schemes are auto-normalized to `postgresql+asyncpg://`. |
+
+### Optional — with sensible defaults
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DB_ECHO` | `0` | SQLAlchemy statement logging. |
+| `LOG_LEVEL` | `INFO` | Standard Python log level. |
+| `LOG_FORMAT` | `json` | `json` for production / structured ingestion, `plain` for local readability. |
+| `JWT_ALGORITHM` | `HS256` | Symmetric — `JWT_SECRET` doubles as both signing and verification key. |
+| `ACCESS_TOKEN_TTL_MINUTES` | `15` | Stateless access JWT lifetime. Bounds the `/auth/logout-all` revocation gap. |
+| `REFRESH_TOKEN_TTL_DAYS` | `30` | Refresh token sliding lifetime — each successful rotation grants a fresh window. |
+| `BULK_IMPORT_MAX_BYTES` | `2097152` (2 MiB) | Enforced by `MaxBodySizeMiddleware`. Set nginx `client_max_body_size` to match in prod. |
+| `BULK_IMPORT_CHUNK_SIZE` | `500` | Rows per inner commit batch. |
+| `BULK_IMPORT_MAX_ROWS` | `50000` | Hard ceiling on rows per request, after parsing. |
+| `BULK_IMPORT_MAX_STORED_ERRORS` | `1000` | Cap on `errors` array in the session record. `error_count_total` still reports the true count. |
+| `IMPORT_RATE_LIMIT_PER_HOUR` | `5` | Per-user cap on `POST /books/import` attempts within the window. |
+| `IMPORT_RATE_WINDOW_SECONDS` | `3600` | Window length for the import rate limit. |
+| `AUTH_DUMMY_PASSWORD` | (built-in) | Hashed once at startup; verified against on `/auth/login` for unknown emails so timing matches the wrong-password case. Setting this doesn't matter functionally — it just needs to exist. |
+
+### Test-only
+
+| Variable | Notes |
+|---|---|
+| `TEST_DATABASE_URL` | When set, **overrides** `DATABASE_URL` in `tests/conftest.py`. The api container has it preconfigured to `db:5432/books_test`, which is what makes `docker exec api pytest` safe — without the override, tests would run against the prod `books` DB. |
+
+---
+
 ## Endpoints
 
 ### Public (no auth)
