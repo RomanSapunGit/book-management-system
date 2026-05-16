@@ -13,7 +13,9 @@ _USER = {"email": "alice@example.com", "password": "correct-horse-battery-staple
 async def test_refresh_rotates_and_old_token_dies(client):
     await client.post("/auth/register", json=_USER)
     pair1 = (await client.post("/auth/login", json=_USER)).json()
-    pair2 = (await client.post("/auth/refresh", json={"refresh_token": pair1["refresh_token"]})).json()
+    pair2 = (
+        await client.post("/auth/refresh", json={"refresh_token": pair1["refresh_token"]})
+    ).json()
     assert pair2["refresh_token"] != pair1["refresh_token"]
 
     r = await client.post(
@@ -32,7 +34,9 @@ async def test_refresh_reuse_revokes_all_sessions(client):
     pair_a = (await client.post("/auth/login", json=_USER)).json()
     pair_b = (await client.post("/auth/login", json=_USER)).json()
 
-    new_a = (await client.post("/auth/refresh", json={"refresh_token": pair_a["refresh_token"]})).json()
+    new_a = (
+        await client.post("/auth/refresh", json={"refresh_token": pair_a["refresh_token"]})
+    ).json()
 
     r = await client.post("/auth/refresh", json={"refresh_token": pair_a["refresh_token"]})
     assert r.status_code == 401
@@ -61,7 +65,9 @@ async def test_logout_all_revokes_every_session(client):
     pair_a = (await client.post("/auth/login", json=_USER)).json()
     pair_b = (await client.post("/auth/login", json=_USER)).json()
 
-    r = await client.post("/auth/logout-all", headers={"Authorization": f"Bearer {pair_a['access_token']}"})
+    r = await client.post(
+        "/auth/logout-all", headers={"Authorization": f"Bearer {pair_a['access_token']}"}
+    )
     assert r.status_code == 204
 
     for pair in (pair_a, pair_b):

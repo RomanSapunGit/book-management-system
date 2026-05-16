@@ -66,12 +66,20 @@ async def test_curator_full_lifecycle(client, auth_headers):
         headers=auth_headers,
     )
 
-    r = await client.get("/books", params={"genre": "Fantasy", "sort_by": "published_year", "sort_dir": "asc"})
+    r = await client.get(
+        "/books", params={"genre": "Fantasy", "sort_by": "published_year", "sort_dir": "asc"}
+    )
     body = r.json()
     assert body["total"] == 3
-    assert [b["title"] for b in body["items"]] == ["The Hobbit", "A Wizard of Earthsea", "Guards! Guards!"]
+    assert [b["title"] for b in body["items"]] == [
+        "The Hobbit",
+        "A Wizard of Earthsea",
+        "Guards! Guards!",
+    ]
 
-    r = await client.patch(f"/books/{hobbit['id']}", json={"genre_id": mystery}, headers=auth_headers)
+    r = await client.patch(
+        f"/books/{hobbit['id']}", json={"genre_id": mystery}, headers=auth_headers
+    )
     assert r.status_code == 200
     assert r.json()["genre"]["name"] == "Mystery"
 
@@ -121,9 +129,13 @@ async def test_bulk_import_journey(client, auth_headers):
     assert r.json()["total"] == 1
     assert r.json()["items"][0]["successful"] == 2
 
-    await client.post("/auth/register", json={"email": "bob@example.com", "password": "very-strong-password"})
+    await client.post(
+        "/auth/register", json={"email": "bob@example.com", "password": "very-strong-password"}
+    )
     pair = (
-        await client.post("/auth/login", json={"email": "bob@example.com", "password": "very-strong-password"})
+        await client.post(
+            "/auth/login", json={"email": "bob@example.com", "password": "very-strong-password"}
+        )
     ).json()
     other_headers = {"Authorization": f"Bearer {pair['access_token']}"}
     r = await client.get("/books/import", headers=other_headers)
