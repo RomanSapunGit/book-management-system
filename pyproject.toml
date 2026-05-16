@@ -43,3 +43,24 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes (unused imports/vars)
+    "W",   # pycodestyle warnings
+    "I",   # isort (import order)
+    "B",   # flake8-bugbear (likely-bug patterns)
+    "UP",  # pyupgrade (modern syntax)
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+]
+ignore = [
+    "E501",  # line length handled by the formatter; long URLs/strings shouldn't fail lint
+    "B008",  # FastAPI's Depends/Query/File defaults are intentionally in the signature
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B017"]   # pytest.raises(Exception) is fine in tests
+"migrations/*" = ["E402"]  # alembic env imports after revision setup
+
