@@ -15,6 +15,9 @@ async def _genre(client, name: str) -> str:
 
 
 async def test_curator_full_lifecycle(client, auth_headers):
+    r = await client.post("/authors", json={"name": "Unauthorized"})
+    assert r.status_code == 401
+
     fantasy = await _genre(client, "Fantasy")
     mystery = await _genre(client, "Mystery")
 
@@ -84,6 +87,12 @@ async def test_curator_full_lifecycle(client, auth_headers):
 
 
 async def test_bulk_import_journey(client, auth_headers):
+    r = await client.post(
+        "/books/import",
+        files={"file": ("books.csv", io.BytesIO(b"title\nX\n"), "text/csv")},
+    )
+    assert r.status_code == 401
+
     csv = (
         "title,genre,authors,published_year\n"
         "Dune,Science Fiction,Frank Herbert,1965\n"
