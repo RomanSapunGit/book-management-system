@@ -131,6 +131,10 @@ Don't add the index back, and don't reintroduce a "get-or-create by name" code p
 | `datetime.now()` | `datetime.now(UTC)` |
 | Class-based tests | Function-based pytest |
 
+
+## Planning first
+Pause at each checkpoint during /implement — wait for confirmation between phases instead of chaining them
+
 ## Keeping this file current
 
 Update CLAUDE.md as part of the same change that invalidates it. A stale CLAUDE.md is
