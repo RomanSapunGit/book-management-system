@@ -19,6 +19,13 @@ async def create_author(session: AsyncSession, *, name: str, bio: str | None) ->
     return author
 
 
+async def get_author(session: AsyncSession, author_id: UUID) -> Author:
+    author = await session.get(Author, author_id)
+    if not author:
+        raise NotFoundError("Author", author_id)
+    return author
+
+
 async def create_authors_from_names(session: AsyncSession, names: Iterable[str]) -> list[Author]:
     """Bulk-create one Author row per input name. No deduplication: a name appearing twice
     in `names` produces two distinct Author rows, mirroring how a CSV row with repeated
@@ -36,13 +43,14 @@ async def create_authors_from_names(session: AsyncSession, names: Iterable[str])
     return created
 
 
-async def get_authors_by_ids(session: AsyncSession, ids: Iterable[UUID]) -> list[Author]:
-    ids = list(set(ids))
+async def get_authors_by_ids(session: AsyncSession, ids: list[UUID]) -> list[Author]:
     if not ids:
         return []
-    rows = (await session.execute(select(Author).where(Author.id.in_(ids)))).scalars().all()
-    if len(rows) != len(ids):
-        found = {a.id for a in rows}
-        missing = [i for i in ids if i not in found]
+    unique_ids = list(set(ids))
+    rows = (await session.execute(select(Author).where(Author.id.in_(unique_ids)))).scalars().all()
+    found = {a.id for a in rows}
+    missing = [i for i in ids if i not in found]
+    if missing:
         raise NotFoundError("Author", missing[0])
-    return rows
+    by_id = {a.id: a for a in rows}
+    return [by_id[i] for i in ids]

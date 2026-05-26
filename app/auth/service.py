@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 
 async def register_user(session: AsyncSession, *, email: str, password: str) -> User:
-    email_norm = email.strip().lower()
+    email_norm = email.strip().casefold()
     existing = (
         await session.execute(select(User).where(func.lower(User.email) == email_norm))
     ).scalar_one_or_none()
@@ -30,7 +30,7 @@ async def register_user(session: AsyncSession, *, email: str, password: str) -> 
 
 
 async def authenticate(session: AsyncSession, *, email: str, password: str) -> User:
-    email_norm = email.strip().lower()
+    email_norm = email.strip().casefold()
     user = (
         await session.execute(select(User).where(func.lower(User.email) == email_norm))
     ).scalar_one_or_none()
@@ -88,7 +88,7 @@ async def refresh_tokens(session: AsyncSession, *, presented: str) -> TokenPair:
             log.warning(
                 "refresh-token reuse detected user_id=%s — revoking all sessions", row.user_id
             )
-            await _revoke_all_for_user(session, row.user_id)
+            await revoke_all_for_user(session, row.user_id)
             await session.commit()  # persist the revocation BEFORE the rollback-on-raise.
             raise UnauthorizedError("Refresh token reuse detected; all sessions revoked")
         raise UnauthorizedError("Refresh token revoked")
@@ -119,10 +119,6 @@ async def revoke(session: AsyncSession, *, presented: str) -> None:
 
 
 async def revoke_all_for_user(session: AsyncSession, user_id: UUID) -> None:
-    await _revoke_all_for_user(session, user_id)
-
-
-async def _revoke_all_for_user(session: AsyncSession, user_id: UUID) -> None:
     await session.execute(
         update(RefreshToken)
         .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))

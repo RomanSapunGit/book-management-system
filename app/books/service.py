@@ -8,6 +8,7 @@ from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.authors import service as author_service
 from app.db.models import Author, Book, Genre, book_authors
 from app.exceptions import NotFoundError
 
@@ -77,18 +78,6 @@ async def get_book(session: AsyncSession, book_id: UUID) -> Book:
     return book
 
 
-async def _validate_authors(session: AsyncSession, author_ids: list[UUID]) -> list[Author]:
-    if not author_ids:
-        return []
-    rows = (await session.execute(select(Author).where(Author.id.in_(author_ids)))).scalars().all()
-    found = {a.id for a in rows}
-    missing = [i for i in author_ids if i not in found]
-    if missing:
-        raise NotFoundError("Author", missing[0])
-    by_id = {a.id: a for a in rows}
-    return [by_id[i] for i in author_ids]
-
-
 async def _validate_genre(session: AsyncSession, genre_id: UUID | None) -> None:
     if genre_id is None:
         return
@@ -107,7 +96,7 @@ async def create_book(
     author_ids: list[UUID],
 ) -> Book:
     await _validate_genre(session, genre_id)
-    authors = await _validate_authors(session, author_ids)
+    authors = await author_service.get_authors_by_ids(session, author_ids)
     book = Book(
         title=title,
         genre_id=genre_id,
@@ -137,7 +126,7 @@ async def update_book(session: AsyncSession, book_id: UUID, *, changes: dict) ->
             from app.exceptions import ConflictError
 
             raise ConflictError("A book must have at least one author")
-        book.authors = await _validate_authors(session, author_ids)
+        book.authors = await author_service.get_authors_by_ids(session, author_ids)
 
     for k, v in changes.items():
         setattr(book, k, v)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -83,6 +83,14 @@ def install_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content=_body("Validation error", _rid(request), errors=jsonable_encoder(exc.errors())),
+        )
+
+    @app.exception_handler(HTTPException)
+    async def _http(request: Request, exc: HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=_body(exc.detail, _rid(request)),
+            headers=getattr(exc, "headers", None),
         )
 
     @app.exception_handler(Exception)

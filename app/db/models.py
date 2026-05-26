@@ -131,7 +131,7 @@ class ImportSession(Base):
     """Persisted record of one bulk-import attempt.
 
     Lives in the DB (rather than memory) so:
-      - clients can re-fetch the report after disconnect
+      - clients can find the report via GET /books/import (paginated list)
       - rate limiting can count attempts per user per hour without separate infra
       - audit shows who imported what and when
 

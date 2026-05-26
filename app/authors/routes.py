@@ -13,7 +13,6 @@ from app.authors import service as author_service
 from app.authors.schemas import AuthorCreate, AuthorRead
 from app.db import get_db_session
 from app.db.models import Author
-from app.exceptions import NotFoundError
 
 router = APIRouter()
 
@@ -45,7 +44,4 @@ async def list_authors(
 
 @router.get("/{author_id}", response_model=AuthorRead)
 async def get_author(author_id: UUID, db: AsyncSession = Depends(get_db_session)):
-    author = await db.get(Author, author_id)
-    if not author:
-        raise NotFoundError("Author", author_id)
-    return author
+    return await author_service.get_author(db, author_id)

@@ -20,7 +20,7 @@ def _slugify(name: str) -> str:
     non-ASCII characters the slug will collapse the non-alnum stretches to hyphens, which
     is fine for the case-insensitive uniqueness check downstream.
     """
-    s = re.sub(r"[^\w]+", "-", name.lower(), flags=re.UNICODE).strip("-")
+    s = re.sub(r"[^\w]+", "-", name.casefold(), flags=re.UNICODE).strip("-")
     return s or "genre"  # pathological all-punctuation name → fall back to a constant
 
 

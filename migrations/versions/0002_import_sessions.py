@@ -1,7 +1,7 @@
 """import_sessions table
 
 Persists one row per bulk-import attempt. The endpoint at POST /books/import returns the
-session id; clients can re-fetch the report from GET /books/import/{id}.
+session id; clients can re-fetch the report from GET /books/import (paginated list).
 
 Revision ID: 0002
 Revises: 0001

@@ -107,7 +107,7 @@ copy-pasteable starting point.
 | `POST` / `PATCH` / `DELETE` | `/books`, `/books/{id}` | Authors referenced by `author_ids` only. PATCH is strict partial (`null` clears, unknown keys → 422). |
 | `POST` | `/books/import` | Multipart CSV/JSON. 2 MiB cap, 5/hour/user rate limit, per-row atomic. Returns the full import report (`ImportSessionRead`). |
 | `GET` | `/books/import` | Paginated audit list of the caller's own past imports. |
-| `POST` / `PATCH` / `DELETE` | `/authors`, `/authors/{id}` | Names are **not** unique — see *Author identity*. |
+| `POST` | `/authors` | Names are **not** unique — see *Author identity*. |
 | `POST` / `PATCH` / `DELETE` | `/genres`, `/genres/{id}` | Case-insensitive uniqueness on name and slug. Delete is `409` if any book references the genre (FK RESTRICT). |
 | `POST` | `/auth/logout-all` | Revoke every refresh token for the calling user. |
 
